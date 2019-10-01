@@ -3,17 +3,18 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include "Eigen-3.3/Eigen/Core"
-#include "Eigen-3.3/Eigen/QR"
+
 #include "helpers.h"
 #include "json.hpp"
+#include "path_planner.h"
 
 // for convenience
 using nlohmann::json;
 using std::string;
-using std::vector;
+using std::vector;;
 
 int main() {
+  PathPlanner planner;
   uWS::Hub h;
 
   // Load up map values for waypoint's x,y,s and d normalized normal vectors
@@ -51,7 +52,7 @@ int main() {
   }
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
-               &map_waypoints_dx,&map_waypoints_dy]
+               &map_waypoints_dx,&map_waypoints_dy, &planner]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -93,14 +94,12 @@ int main() {
           vector<double> next_x_vals;
           vector<double> next_y_vals;
 
-          /**
-           * TODO: define a path made up of (x,y) points that the car will visit
-           *   sequentially every .02 seconds
-           */
+          Car car = {car_x, car_y, car_s, car_d, car_yaw, car_speed};
+          vector<vector<double>> prev_vals = {next_x_vals, next_y_vals};
+          vector<vector<double>> next_vals = planner.plan(car, prev_vals);
 
-
-          msgJson["next_x"] = next_x_vals;
-          msgJson["next_y"] = next_y_vals;
+          msgJson["next_x"] = next_vals[0];
+          msgJson["next_y"] = next_vals[1];
 
           auto msg = "42[\"control\","+ msgJson.dump()+"]";
 
