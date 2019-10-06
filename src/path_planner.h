@@ -13,7 +13,16 @@ class PathPlanner {
 
     public:
 
+    PathPlanner(vector<double> &maps_s, vector<double> &maps_x, vector<double> &maps_y);
+
     vector<vector<double>> plan(Car &car, vector<vector<double>> &prevPath);
+
+    private:
+    vector<double> &maps_s;
+    vector<double> &maps_x;
+    vector<double> &maps_y;
+
+    inline vector<double> toCartesian(double s, double d);
 };
 
 #endif // PATH_PLANNER_H

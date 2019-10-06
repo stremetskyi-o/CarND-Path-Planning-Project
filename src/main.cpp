@@ -14,7 +14,6 @@ using std::string;
 using std::vector;;
 
 int main() {
-  PathPlanner planner;
   uWS::Hub h;
 
   // Load up map values for waypoint's x,y,s and d normalized normal vectors
@@ -50,6 +49,8 @@ int main() {
     map_waypoints_dx.push_back(d_x);
     map_waypoints_dy.push_back(d_y);
   }
+
+  PathPlanner planner(map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy, &planner]
