@@ -21,8 +21,15 @@ class PathPlanner {
     vector<double> &maps_s;
     vector<double> &maps_x;
     vector<double> &maps_y;
+    double maxPoints = 50;
+    double dt = 0.02;
+    double maxV = 22;
+    double maxDS = maxV / (1 / dt);
+    double maxA = 9.8;
 
     inline vector<double> toCartesian(double s, double d);
+    double estimateDistance(double currentV, double targetV, double t);
+    VectorXd calcCoeff(vector<double> &start, vector<double> &end, double T);
 };
 
 #endif // PATH_PLANNER_H
