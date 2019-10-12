@@ -1,13 +1,8 @@
 #include <iostream>
 #include <string>
 
-#include "Eigen-3.3/Eigen/Core"
-#include "Eigen-3.3/Eigen/QR"
 #include "helpers.h"
 #include "path_planner.h"
-
-using Eigen::MatrixXd;
-using Eigen::VectorXd;
 
 PathPlanner::PathPlanner(vector<double> &maps_s, vector<double> &maps_x, vector<double> &maps_y) : maps_s(maps_s), maps_x(maps_x), maps_y(maps_y) { }
 

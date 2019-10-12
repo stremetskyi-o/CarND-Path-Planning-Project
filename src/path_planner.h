@@ -2,8 +2,11 @@
 #define PATH_PLANNER_H
 
 #include <vector>
+#include "Eigen-3.3/Eigen/Dense"
 
 using std::vector;
+using Eigen::MatrixXd;
+using Eigen::VectorXd;
 
 struct Car {
         double x, y, s, d, yaw, speed;
