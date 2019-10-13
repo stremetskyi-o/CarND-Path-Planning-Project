@@ -11,7 +11,7 @@
 // for convenience
 using nlohmann::json;
 using std::string;
-using std::vector;;
+using std::vector;
 
 int main() {
   uWS::Hub h;
@@ -94,7 +94,11 @@ int main() {
 
           Car car = {car_x, car_y, car_s, car_d, car_yaw, car_speed};
           vector<vector<double>> prev_vals = {previous_path_x, previous_path_y};
-          vector<vector<double>> next_vals = planner.plan(car, prev_vals);
+          vector<OtherCar> otherCars;
+          for (auto &sf: sensor_fusion) {
+            otherCars.push_back({sf[0], sf[1], sf[2], sf[3], sf[4], sf[5], sf[6]});
+          }
+          vector<vector<double>> next_vals = planner.plan(car, prev_vals, otherCars);
 
           msgJson["next_x"] = next_vals[0];
           msgJson["next_y"] = next_vals[1];
