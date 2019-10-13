@@ -3,14 +3,20 @@
 
 #include <vector>
 #include "Eigen-3.3/Eigen/Dense"
+#include "spline.h"
 
 using std::vector;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
+using tk::spline;
 
 struct Car {
         double x, y, s, d, yaw, speed;
     };
+
+struct Point {
+    double x, y;
+};
 
 class PathPlanner {
 
@@ -31,6 +37,7 @@ class PathPlanner {
     double maxA = 9.8;
 
     inline vector<double> toCartesian(double s, double d);
+    inline vector<double> toFrenet(double x, double y, double theta);
     double estimateDistance(double currentV, double targetV, double t);
     VectorXd calcCoeff(vector<double> &start, vector<double> &end, double T);
 };

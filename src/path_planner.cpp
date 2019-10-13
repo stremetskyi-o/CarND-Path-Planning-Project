@@ -7,52 +7,79 @@
 PathPlanner::PathPlanner(vector<double> &maps_s, vector<double> &maps_x, vector<double> &maps_y) : maps_s(maps_s), maps_x(maps_x), maps_y(maps_y) { }
 
 vector<vector<double>> PathPlanner::plan(Car &car, vector<vector<double>> &prevPath) {
-    vector<double> pathX;
-    vector<double> pathY;
-    double speed = car.speed;
-    double s = car.s;
-    double sEstimated = car.s + estimateDistance(car.speed, maxV, 1);
-    vector<double> start = {s, speed, 0};
-    vector<double> end = {sEstimated, maxV, 0};
-    VectorXd coeff = calcCoeff(start, end, 1);
-    for (int i = 0; i < maxPoints; i++) {
-        VectorXd polynom(6);
-        double t = dt * (i + 1);
-        polynom << 1, t, pow(t, 2), pow(t, 3), pow(t, 4), pow(t, 5);
-        s = coeff.dot(polynom);
-        vector<double> xy = toCartesian(s, car.d);
-        pathX.push_back(xy[0]);
-        pathY.push_back(xy[1]);
+    vector<double> pathX = prevPath[0];
+    vector<double> pathY = prevPath[1];
+    double startS, theta;
+    Point start, startPrev;
+
+    if (pathX.size() < 2) {
+        startS = car.s;
+        theta = deg2rad(car.yaw);
+        start = {car.x, car.y};
+        startPrev = {start.x - cos(theta), start.y - sin(theta)};
+    } else {
+        start = {pathX[pathX.size() - 1], pathY[pathY.size() - 1]};
+        startPrev = {pathX[pathX.size() - 2], pathY[pathY.size() - 2]};
+        theta = atan2(start.y - startPrev.y, start.x - startPrev.x);
+        double sPrev = toFrenet(startPrev.x, startPrev.y, theta)[0];
+        startS = toFrenet(start.x, start.y, theta)[0];
     }
-    vector<vector<double>> path;
-    path.push_back(pathX);
-    path.push_back(pathY);    
+
+    vector<double> splineX, splineY;
+    splineX.push_back(startPrev.x);
+    splineX.push_back(start.x);
+    splineY.push_back(startPrev.y);
+    splineY.push_back(start.y);
+
+    int lane = 1;
+    double targetD = 2 + lane * 4;
+
+    for (int i = 0; i < 5; i++) {
+        vector<double> xy = toCartesian(startS + 10 * (i + 1), targetD);
+        splineX.push_back(xy[0]);
+        splineY.push_back(xy[1]);
+    }
+    
+    for (int i = 0; i < splineX.size(); i++) {
+        double deltaX = splineX[i] - start.x;
+        double deltaY = splineY[i] - start.y;
+
+        splineX[i] = deltaX * cos(-theta) - deltaY * sin(-theta);
+        splineY[i] = deltaX * sin(-theta) + deltaY * cos(-theta);
+    }
+
+    double targetV = car.speed + maxA * dt;
+    if (targetV > maxV) {
+        targetV = maxV;
+    }
+
+    spline pathSpline;
+    pathSpline.set_points(splineX, splineY);
+
+    double pointCount = maxPoints - pathX.size();
+    double targetX = maxDS;
+    double targetY = pathSpline(targetX);
+    double targetDist = sqrt(pow(targetX, 2) + pow(targetY, 2));
+    double currentX = 0;
+    double n = targetDist / (targetV * dt);
+
+    for (int i = 1; i <= pointCount; i++) {
+        double nextX = currentX + targetX / n;
+        double nextY = pathSpline(nextX);
+        currentX = nextX;
+
+        pathX.push_back(start.x + nextX * cos(theta) - nextY * sin(theta));
+        pathY.push_back(start.y + nextX * sin(theta) + nextY * cos(theta));
+    }
+
+    vector<vector<double>> path = {pathX, pathY};
     return path;
 }
 
-double PathPlanner::estimateDistance(double currentV, double targetV, double t) {
-    double d = targetV * (t - ((targetV - currentV) / maxA));
-    return d;
+inline vector<double> PathPlanner::toCartesian(double startS, double d) {
+    return getXY(startS, d, maps_s, maps_x, maps_y);
 }
 
-VectorXd PathPlanner::calcCoeff(vector<double> &start, vector<double> &end, double t) {  
-  double t2 = pow(t, 2);
-  double t3 = pow(t, 3);
-  double t4 = pow(t, 4);
-  MatrixXd time(3, 3);
-  time << t3, t4, pow(t, 5),
-          3 * t2, 4 * t3, 5 * t4,
-          6 * t, 12 * t2, 20 * t3;
-  VectorXd s(3);
-  s << end[0] - (start[0] + start[1] * t + start[2] * t2 / 2),
-       end[1] - (start[1] + start[2] * t),
-       end[2] - start[2];
-  
-  VectorXd result(6);
-  result << start[0], start[1], start[2] / 2, time.inverse() * s;
-  return result;
-}
-
-inline vector<double> PathPlanner::toCartesian(double s, double d) {
-    return getXY(s, d, maps_s, maps_x, maps_y);
+inline vector<double> PathPlanner::toFrenet(double x, double y, double theta) {
+    return getFrenet(x, y, theta, maps_x, maps_y);
 }

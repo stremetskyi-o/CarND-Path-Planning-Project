@@ -92,11 +92,8 @@ int main() {
 
           json msgJson;
 
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
-
           Car car = {car_x, car_y, car_s, car_d, car_yaw, car_speed};
-          vector<vector<double>> prev_vals = {next_x_vals, next_y_vals};
+          vector<vector<double>> prev_vals = {previous_path_x, previous_path_y};
           vector<vector<double>> next_vals = planner.plan(car, prev_vals);
 
           msgJson["next_x"] = next_vals[0];
