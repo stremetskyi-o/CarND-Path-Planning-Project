@@ -37,58 +37,121 @@ vector<vector<double>> PathPlanner::plan(Car &car, vector<vector<double>> &prevP
     int startLane = startSD.d / 4;
 
     // Choose next state
+    cout << "Current state: " << state;
     vector<State> nextStates = fsm[state];
     vector<double> nextStateCosts;
+    vector<int> nextStateLanes;
+    vector<double> nextStateVs;
     for (State &nextState : nextStates) {
-        double cost;
+        double cost = 100;
+        double lane = startLane;
+        double v = maxV;
         switch (nextState) {
-        case LK:
-            cost = 0;
+        case LK: {
+            vector<OtherCar> carsInlane = filterCarsByLane(otherCars, startLane);
+            OtherCar* closestCar = findClosestCar(carsInlane, car.s, startSD.s + 5);
+            if (closestCar) {
+                v = sqrt(pow(closestCar->vx, 2) + pow(closestCar->vy, 2));
+                if (v > maxV) {
+                    v = maxV;
+                }
+            } else {
+                v = maxV;
+            }
+            cost = 1 - v / maxV;
+            cout << " LK=" << cost;
             break;
+        }
         case PLCL:
-        case PLCR: 
-        case LCL:
-        case LCR:
-            cost = 100;
+            if (startLane != 0) {
+                lane = startLane - 1;
+                vector<OtherCar> carsInlane = filterCarsByLane(otherCars, lane);
+                OtherCar* closestCar = findClosestCar(carsInlane, startSD.s - 5, startSD.s + 30);
+                if (closestCar) {
+                    double closestCarV = sqrt(pow(closestCar->vx, 2) + pow(closestCar->vy, 2));
+                    double predictedS = closestCar->s + pathX.size() * dt * closestCarV;
+                    double deltaS = fabs (predictedS - startSD.s);
+                    if (deltaS > 5) {
+                        cost = deltaS / 30;
+                    } else {
+                        cost = 1;
+                    }
+                } else {
+                    cost = 0.01;
+                }
+            }
+            cout << " PLCL=" << cost;
             break;
+        case PLCR: 
+            if (startLane != 2) {
+                lane = startLane + 1;
+                vector<OtherCar> carsInlane = filterCarsByLane(otherCars, lane);
+                OtherCar* closestCar = findClosestCar(carsInlane, startSD.s - 5, startSD.s + 30);
+                if (closestCar) {
+                    double closestCarV = sqrt(pow(closestCar->vx, 2) + pow(closestCar->vy, 2));
+                    double predictedS = closestCar->s + pathX.size() * dt * closestCarV;
+                    double deltaS = fabs (predictedS - startSD.s);
+                    if (deltaS > 5) {
+                        cost = deltaS / 30;
+                    } else {
+                        cost = 1;
+                    }
+                } else {
+                    cost = 0.01;
+                }
+            }
+            cout << " PLCR=" << cost;
+            break;
+        case LCL: {
+            if (startLane != 0) {
+                lane = startLane - 1;
+                vector<OtherCar> carsInlane = filterCarsByLane(otherCars, lane);
+                OtherCar* closestCar = findClosestCar(carsInlane, startSD.s, startSD.s + 5);
+                double deltaV = 0;
+                if (closestCar) {
+                    deltaV = fabs(sqrt(pow(closestCar->vx, 2) + pow(closestCar->vy, 2)) - targetV);
+                }
+                cost = deltaV / maxV;
+            }
+            cout << " LCL=" << cost;
+            break;
+        }
+        case LCR: {
+            if (startLane != 2) {
+                lane = startLane + 1;
+                vector<OtherCar> carsInlane = filterCarsByLane(otherCars, lane);
+                OtherCar* closestCar = findClosestCar(carsInlane, startSD.s, startSD.s + 5);
+                double deltaV = 0;
+                if (closestCar) {
+                    deltaV = fabs(sqrt(pow(closestCar->vx, 2) + pow(closestCar->vy, 2)) - targetV);
+                }
+                cost = deltaV / maxV;
+            }
+            cout << " LCR=" << cost;
+            break;
+        }
         }
         nextStateCosts.push_back(cost);
+        nextStateLanes.push_back(lane);
+        nextStateVs.push_back(v);
     }
+    cout << endl;
 
-    State nextState = nextStates[std::distance(nextStateCosts.begin(), std::min_element(nextStateCosts.begin(), nextStateCosts.end()))];
-    if (state != nextState) {
-        cout << "Transiting to state: " << nextState << endl;
-        state = nextState;
-    }
-
-    // Calculate target speed and lane
-    int targetLane;
-
-    switch (state) {
-    case LK: {
-        targetLane = startLane;
-        vector<OtherCar> carsInlane = filterCarsByLane(otherCars, startLane);
-        OtherCar* closestCar = findClosestCar(carsInlane, startSD.s, startSD.s + 5);
-        if (closestCar) {
-            double otherCarV = sqrt(pow(closestCar->vx, 2) + pow(closestCar->vy, 2));
-            targetV -= maxA * dt;
-            if (targetV < otherCarV) {
-                targetV = otherCarV;
-            }
-        } else {
-            targetV += maxA * dt;
-            if (targetV > maxV) {
-                targetV = maxV;
-            }
+    // Select next state, lane and speed
+    int minCostPos = std::distance(nextStateCosts.begin(), std::min_element(nextStateCosts.begin(), nextStateCosts.end()));
+    state = nextStates[minCostPos];
+    int targetLane = nextStateLanes[minCostPos];
+    double nextStateV = nextStateVs[minCostPos];
+    if (nextStateV < targetV) {
+        targetV -= maxA * dt;
+        if (targetV < 0) {
+            targetV = 0;
         }
-        break;
-    }
-    case LCL:
-        targetLane = startLane - 1;
-        break;
-    case LCR:
-        targetLane = startLane + 1;
-        break;
+    } else if (nextStateV > targetV) {
+        targetV += maxA * dt;
+        if (targetV > maxV) {
+            targetV = maxV;
+        }
     }
 
     // Generate Trajectory
@@ -100,8 +163,8 @@ vector<vector<double>> PathPlanner::plan(Car &car, vector<vector<double>> &prevP
     splineY.push_back(startPrev.y);
     splineY.push_back(start.y);
 
-    for (int i = 0; i < 5; i++) {
-        vector<double> xy = toCartesian(startSD.s + 10 * (i + 1), targetD);
+    for (int i = 0; i < 2; i++) {
+        vector<double> xy = toCartesian(startSD.s + 30 * (i + 1), targetD);
         splineX.push_back(xy[0]);
         splineY.push_back(xy[1]);
     }
