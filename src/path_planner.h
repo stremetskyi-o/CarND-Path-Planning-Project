@@ -20,6 +20,10 @@ struct OtherCar {
     double id, x, y, vx, vy, s, d;
 };
 
+struct OtherCarPrediction {
+    double id, v, s, d;
+};
+
 struct PointXY {
     double x, y;
 };
@@ -70,8 +74,9 @@ class PathPlanner {
     inline vector<double> toCartesian(double s, double d);
     inline vector<double> toFrenet(double x, double y, double theta);
     vector<OtherCar> filterCarsByLane(vector<OtherCar> &otherCars, int lane);
-    OtherCar* findClosestCar(vector<OtherCar> &otherCars, double fromS, double toS);
-    Kinematics keepLaneKinematics(Car &car, vector<OtherCar> &otherCars, PointSD &startSD, int startLane);
+    vector<OtherCarPrediction> predictCars(vector<OtherCar> &otherCars, double t);
+    OtherCarPrediction* findClosestCar(vector<OtherCarPrediction> &otherCars, double fromS, double toS);
+    Kinematics keepLaneKinematics(Car &car, int currentPathSize, vector<OtherCar> &otherCars, PointSD &startSD, int startLane);
     Kinematics prepareLaneChangeKinematics(Car &car, int currentPathSize, vector<OtherCar> &otherCars, PointSD &startSD, int startLane, int deltaLane);
     Kinematics laneChangeKinematics(Car &car, int currentPathSize, vector<OtherCar> &otherCars, PointSD &startSD, int startLane, int deltaLane);
     double calcCost(Kinematics kinematics);
