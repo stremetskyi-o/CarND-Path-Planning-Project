@@ -37,111 +37,49 @@ vector<vector<double>> PathPlanner::plan(Car &car, vector<vector<double>> &prevP
     int startLane = startSD.d / 4;
 
     // Choose next state
-    cout << "Current state: " << state;
+    cout << fsmNames[state] << "->";
     vector<State> nextStates = fsm[state];
     vector<double> nextStateCosts;
-    vector<int> nextStateLanes;
-    vector<double> nextStateVs;
+    vector<Kinematics> nextStateKinematics;
     for (State &nextState : nextStates) {
-        double cost = 100;
-        double lane = startLane;
-        double v = maxV;
+        Kinematics kinematics = {0, 0, 0};
         switch (nextState) {
-        case LK: {
-            vector<OtherCar> carsInlane = filterCarsByLane(otherCars, startLane);
-            OtherCar* closestCar = findClosestCar(carsInlane, car.s, startSD.s + 5);
-            if (closestCar) {
-                v = sqrt(pow(closestCar->vx, 2) + pow(closestCar->vy, 2));
-                if (v > maxV) {
-                    v = maxV;
-                }
-            } else {
-                v = maxV;
-            }
-            cost = 1 - v / maxV;
-            cout << " LK=" << cost;
+        case LK:
+            kinematics = keepLaneKinematics(car, otherCars, startSD, startLane);
             break;
-        }
         case PLCL:
             if (startLane != 0) {
-                lane = startLane - 1;
-                vector<OtherCar> carsInlane = filterCarsByLane(otherCars, lane);
-                OtherCar* closestCar = findClosestCar(carsInlane, startSD.s - 5, startSD.s + 30);
-                if (closestCar) {
-                    double closestCarV = sqrt(pow(closestCar->vx, 2) + pow(closestCar->vy, 2));
-                    double predictedS = closestCar->s + pathX.size() * dt * closestCarV;
-                    double deltaS = fabs (predictedS - startSD.s);
-                    if (deltaS > 5) {
-                        cost = deltaS / 30;
-                    } else {
-                        cost = 1;
-                    }
-                } else {
-                    cost = 0.01;
-                }
+                kinematics = prepareLaneChangeKinematics(car, pathX.size(), otherCars, startSD, startLane, -1);
             }
-            cout << " PLCL=" << cost;
             break;
         case PLCR: 
             if (startLane != 2) {
-                lane = startLane + 1;
-                vector<OtherCar> carsInlane = filterCarsByLane(otherCars, lane);
-                OtherCar* closestCar = findClosestCar(carsInlane, startSD.s - 5, startSD.s + 30);
-                if (closestCar) {
-                    double closestCarV = sqrt(pow(closestCar->vx, 2) + pow(closestCar->vy, 2));
-                    double predictedS = closestCar->s + pathX.size() * dt * closestCarV;
-                    double deltaS = fabs (predictedS - startSD.s);
-                    if (deltaS > 5) {
-                        cost = deltaS / 30;
-                    } else {
-                        cost = 1;
-                    }
-                } else {
-                    cost = 0.01;
-                }
+                kinematics = prepareLaneChangeKinematics(car, pathX.size(), otherCars, startSD, startLane, 1);
             }
-            cout << " PLCR=" << cost;
             break;
-        case LCL: {
+        case LCL:
             if (startLane != 0) {
-                lane = startLane - 1;
-                vector<OtherCar> carsInlane = filterCarsByLane(otherCars, lane);
-                OtherCar* closestCar = findClosestCar(carsInlane, startSD.s, startSD.s + 5);
-                double deltaV = 0;
-                if (closestCar) {
-                    deltaV = fabs(sqrt(pow(closestCar->vx, 2) + pow(closestCar->vy, 2)) - targetV);
-                }
-                cost = deltaV / maxV;
+                kinematics = laneChangeKinematics(car, pathX.size(), otherCars, startSD, startLane, -1);
             }
-            cout << " LCL=" << cost;
             break;
-        }
-        case LCR: {
+        case LCR:
             if (startLane != 2) {
-                lane = startLane + 1;
-                vector<OtherCar> carsInlane = filterCarsByLane(otherCars, lane);
-                OtherCar* closestCar = findClosestCar(carsInlane, startSD.s, startSD.s + 5);
-                double deltaV = 0;
-                if (closestCar) {
-                    deltaV = fabs(sqrt(pow(closestCar->vx, 2) + pow(closestCar->vy, 2)) - targetV);
-                }
-                cost = deltaV / maxV;
+                kinematics = laneChangeKinematics(car, pathX.size(), otherCars, startSD, startLane, 1);
             }
-            cout << " LCR=" << cost;
             break;
         }
-        }
+        double cost = calcCost(kinematics);
+        cout << " " << fsmNames[nextState] << "=" << cost;
         nextStateCosts.push_back(cost);
-        nextStateLanes.push_back(lane);
-        nextStateVs.push_back(v);
+        nextStateKinematics.push_back(kinematics);
     }
     cout << endl;
 
     // Select next state, lane and speed
     int minCostPos = std::distance(nextStateCosts.begin(), std::min_element(nextStateCosts.begin(), nextStateCosts.end()));
     state = nextStates[minCostPos];
-    int targetLane = nextStateLanes[minCostPos];
-    double nextStateV = nextStateVs[minCostPos];
+    int  nextStateLane = nextStateKinematics[minCostPos].resultLane;
+    double nextStateV = nextStateKinematics[minCostPos].v;
     if (nextStateV < targetV) {
         targetV -= maxA * dt;
         if (targetV < 0) {
@@ -155,7 +93,7 @@ vector<vector<double>> PathPlanner::plan(Car &car, vector<vector<double>> &prevP
     }
 
     // Generate Trajectory
-    double targetD = 2 + targetLane * 4;
+    double targetD = laneWidth / 2 + nextStateLane * laneWidth;
 
     vector<double> splineX, splineY;
     splineX.push_back(startPrev.x);
@@ -211,7 +149,7 @@ inline vector<double> PathPlanner::toFrenet(double x, double y, double theta) {
 vector<OtherCar> PathPlanner::filterCarsByLane(vector<OtherCar> &otherCars, int lane) {
     vector<OtherCar> result;
     for (auto &car : otherCars) {
-        if (car.d > lane * 4 && car.d < (lane + 1) * 4) {
+        if (car.d > lane * laneWidth && car.d < (lane + 1) * laneWidth) {
             result.push_back(car);
         }
     }
@@ -228,4 +166,69 @@ OtherCar* PathPlanner::findClosestCar(vector<OtherCar> &otherCars, double fromS,
         }
     }
     return result;
+}
+
+Kinematics PathPlanner::keepLaneKinematics(Car &car, vector<OtherCar> &otherCars, PointSD &startSD, int startLane) {
+    double v;
+    double deltaS;
+    vector<OtherCar> carsInlane = filterCarsByLane(otherCars, startLane);
+    OtherCar* closestCar = findClosestCar(carsInlane, car.s, startSD.s + horizon);
+    if (!closestCar || closestCar->s - startSD.s > buffer) {
+        v = maxV;
+        deltaS = 1000;
+    } else {
+        v = sqrt(pow(closestCar->vx, 2) + pow(closestCar->vy, 2));
+        if (v > maxV) {
+            v = maxV;
+        }
+        deltaS = closestCar->s - car.s;
+    }
+    return {v, deltaS, 0, startLane};
+}
+
+Kinematics PathPlanner::prepareLaneChangeKinematics(Car &car, int currentPathSize, vector<OtherCar> &otherCars, PointSD &startSD, int startLane, int deltaLane) {
+    double v;
+    double deltaS;
+    int resultLane = startLane + deltaLane;
+    vector<OtherCar> carsInlane = filterCarsByLane(otherCars, resultLane);
+    OtherCar* closestCar = findClosestCar(carsInlane, startSD.s - buffer, startSD.s + horizon);
+    if (closestCar) {
+        v = sqrt(pow(closestCar->vx, 2) + pow(closestCar->vy, 2));
+        double predictedS = closestCar->s + currentPathSize * dt * v;
+        deltaS = fabs (predictedS - startSD.s);
+        if (v > maxV) {
+            v = maxV;
+        }
+    } else {
+        v = maxV;
+        deltaS = 1000;
+    }
+    return {v, deltaS, deltaLane, resultLane};
+}
+
+Kinematics PathPlanner::laneChangeKinematics(Car &car, int currentPathSize, vector<OtherCar> &otherCars, PointSD &startSD, int startLane, int deltaLane) {
+    double v;
+    double deltaS;
+    int resultLane = startLane + deltaLane;
+    vector<OtherCar> carsInlane = filterCarsByLane(otherCars, resultLane);
+    OtherCar* closestCar = findClosestCar(carsInlane, startSD.s, startSD.s + horizon);
+    if (closestCar) {
+        v = sqrt(pow(closestCar->vx, 2) + pow(closestCar->vy, 2));
+        double predictedS = closestCar->s + currentPathSize * dt * v;
+        deltaS = fabs (predictedS - startSD.s);
+        if (v > maxV) {
+            v = maxV;
+        }
+    } else {
+        v = targetV;
+        deltaS = 1000;
+    }
+    return {v, deltaS, deltaLane, resultLane};
+}
+
+double PathPlanner::calcCost(Kinematics kinematics) {
+    double maxSpeedCost = 1 - kinematics.v / maxV;
+    double distanceSpeedCost = 1 - exp(-kinematics.v / fabs(kinematics.deltaS));
+    double laneChangeCost = 1 - exp(-fabs(kinematics.deltaLane));
+    return maxSpeedCost * 0.6 + distanceSpeedCost * 0.3 + laneChangeCost * 0.1; 
 }

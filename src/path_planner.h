@@ -30,6 +30,11 @@ struct PointSD {
 
 enum State { INIT, LK, PLCL, PLCR, LCL, LCR };
 
+struct Kinematics {
+    double v, deltaS;
+    int deltaLane, resultLane;
+};
+
 class PathPlanner {
 
     public:
@@ -48,6 +53,9 @@ class PathPlanner {
     double maxDS = maxV / (1 / dt);
     double maxA = 9.8;
     double targetV = 0;
+    double horizon = 30;
+    double buffer = 5;
+    double laneWidth = 4;
     State state = INIT;
     map<State, vector<State>> fsm = {
         {INIT, {LK}},
@@ -57,11 +65,16 @@ class PathPlanner {
         {LCL, {LK, LCL}},
         {LCR, {LK, LCR}}
     };
+    vector<string> fsmNames = {"INIT", "LK", "PLCL", "PLCR", "LCL", "LCR"};
 
     inline vector<double> toCartesian(double s, double d);
     inline vector<double> toFrenet(double x, double y, double theta);
     vector<OtherCar> filterCarsByLane(vector<OtherCar> &otherCars, int lane);
     OtherCar* findClosestCar(vector<OtherCar> &otherCars, double fromS, double toS);
+    Kinematics keepLaneKinematics(Car &car, vector<OtherCar> &otherCars, PointSD &startSD, int startLane);
+    Kinematics prepareLaneChangeKinematics(Car &car, int currentPathSize, vector<OtherCar> &otherCars, PointSD &startSD, int startLane, int deltaLane);
+    Kinematics laneChangeKinematics(Car &car, int currentPathSize, vector<OtherCar> &otherCars, PointSD &startSD, int startLane, int deltaLane);
+    double calcCost(Kinematics kinematics);
 };
 
 #endif // PATH_PLANNER_H
